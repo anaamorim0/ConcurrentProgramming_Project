@@ -1,0 +1,31 @@
+// Definimos o intervalo de mensagens válidas de 0 a 9
+range Msg := 0..9
+
+// Sender0 representa o estado do emissor com o bit de controlo 0
+// Recebe uma mensagem do ambiente via accept, envia-a pelo canal send0
+// e depois volta ao inicio, ou, se receber rcv_ack0, passa para Sender1
+Sender0 := accept?m:Msg . send0!m . (Sender0 + rcv_ack0 . Sender1)
+
+// Sender1 faz o mesmo, mas para o bit de controlo 1
+Sender1 := accept?m:Msg . send1!m . (Sender1 + rcv_ack1 . Sender0)
+
+// Receiver0 recebe uma mensagem no canal receive0, faz deliver e envia ack
+// Também aceita mensagens no canal receive1, mas nesse caso apenas muda para Receiver1
+Receiver0 := receive0?m:Msg . deliver!m . snd_ack0 . Receiver1 + receive1?m:Msg . snd_ack1 . Receiver0
+
+
+// Receiver1 faz o mesmo, mas começa com receive1 e alterna para Receiver0 se receber bit 0
+Receiver1 := receive1?m:Msg . deliver!m . snd_ack1 . Receiver0 + receive0?m:Msg . snd_ack0 . Receiver1
+
+
+// Trans: entrega a mensagem normalmente, perde-a ou duplica-a, para o bit 0 ou para o bit 1
+Trans := send0?m:Msg . receive0!m . Trans + send0?m:Msg . Trans + send0?m:Msg . receive0!m . receive0!m . Trans + send1?m:Msg . receive1!m . Trans + send1?m:Msg . Trans + send1?m:Msg . receive1!m . receive1!m . Trans
+
+// Ack pode entregar o ack, perde-lo ou duplica-lo para os dois bits
+Ack := snd_ack0 . rcv_ack0 . Ack + snd_ack1 . rcv_ack1 . Ack
+
+// Composição paralela de todos os processos, restringindo as ações internas
+ABP := (Sender0 | Trans | Receiver0 | Ack) \ {send0, send1, receive0, receive1, snd_ack0, snd_ack1, rcv_ack0, rcv_ack1}
+
+// Chamamos ABP para iniciar a simulação
+ABP
